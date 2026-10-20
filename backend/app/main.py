@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from . import db, pipeline
-from .schema_info import SCHEMA_INFO
+from .schema_info import schema_info
 from .config import settings
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -44,6 +44,7 @@ class HistoryTurn(BaseModel):
 class AskRequest(BaseModel):
     question: str = ""
     history: list[HistoryTurn] = Field(default_factory=list)
+    lang: str = "vi"  # UI language; the answer follows the question's language when it is clear
 
 
 def _error_body(message: str, detail: str | None = None) -> dict:
@@ -65,13 +66,13 @@ async def unexpected(_: Request, exc: Exception):
 @app.post("/api/ask")
 def ask(req: AskRequest) -> dict:
     history = [t.model_dump() for t in req.history]
-    return pipeline.ask(req.question, history)
+    return pipeline.ask(req.question, history, req.lang)
 
 
 
 @app.get("/api/schema")
-def schema() -> dict:
-    return SCHEMA_INFO
+def schema(lang: str = "vi") -> dict:
+    return schema_info(lang)
 
 
 @app.get("/api/health")

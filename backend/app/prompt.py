@@ -13,6 +13,7 @@ EXAMPLES: list[tuple[str, dict]] = [
         "Doanh thu theo danh mục sản phẩm",
         {
             "kind": "sql",
+            "lang": "vi",
             "steps": [
                 "Tôi chỉ lấy các đơn hàng đã thanh toán.",
                 "Tôi tính tiền từng sản phẩm trong đơn theo giá lúc mua nhân số lượng.",
@@ -34,26 +35,28 @@ EXAMPLES: list[tuple[str, dict]] = [
         "How many paid orders per week in 2026?",
         {
             "kind": "sql",
+            "lang": "en",
             "steps": [
-                "Tôi lấy các đơn hàng đã thanh toán trong năm 2026.",
-                "Tôi gom đơn theo từng tuần (tính từ thứ Hai) và đếm số đơn mỗi tuần.",
+                "I took the paid orders in 2026.",
+                "I grouped them by week (starting on Monday) and counted the orders in each week.",
             ],
             "interpretation": None,
             "sql": "SELECT date_trunc('week', o.order_date)::date AS week_start, COUNT(*) AS paid_orders\n"
             "FROM orders o\nWHERE o.status = 'paid' AND o.order_date >= '2026-01-01' AND o.order_date < '2027-01-01'\n"
             "GROUP BY 1\nORDER BY 1",
             "columns": [
-                {"name": "week_start", "label": "Tuần bắt đầu", "type": "date"},
-                {"name": "paid_orders", "label": "Số đơn đã thanh toán", "type": "number"},
+                {"name": "week_start", "label": "Week starting", "type": "date"},
+                {"name": "paid_orders", "label": "Paid orders", "type": "number"},
             ],
             "chart": {"type": "line", "x": "week_start", "y": ["paid_orders"]},
-            "suggestions": ["Theo tháng", "So sánh với năm 2025"],
+            "suggestions": ["By month", "Compare with 2025"],
         },
     ),
     (
         "Giá trị trung bình mỗi đơn theo thành phố",
         {
             "kind": "sql",
+            "lang": "vi",
             "steps": [
                 "Tôi tính tổng tiền của từng đơn hàng đã thanh toán.",
                 "Tôi gom các đơn theo thành phố của khách hàng.",
@@ -80,6 +83,7 @@ EXAMPLES: list[tuple[str, dict]] = [
         "Tăng giá Green tea 450ml lên 12000",
         {
             "kind": "refuse",
+            "lang": "vi",
             "reason": "write_operation",
             "message": "Ứng dụng chỉ xem dữ liệu nên không thể đổi giá. Tôi có thể cho bạn xem giá hiện tại và giá đã bán của sản phẩm này.",
             "suggestions": ["Giá hiện tại của Green tea 450ml", "Green tea 450ml đã bán được bao nhiêu?"],
@@ -89,6 +93,7 @@ EXAMPLES: list[tuple[str, dict]] = [
         "Danh sách nhà cung cấp",
         {
             "kind": "refuse",
+            "lang": "vi",
             "reason": "not_available",
             "message": "Dữ liệu chỉ có khách hàng, sản phẩm, đơn hàng và chi tiết đơn hàng, không có thông tin nhà cung cấp.",
             "suggestions": ["Danh sách sản phẩm theo danh mục", "Sản phẩm nào chưa bán được?"],
@@ -98,6 +103,7 @@ EXAMPLES: list[tuple[str, dict]] = [
         "Thành phố nào có nhiều khách nhất, và danh mục nào có doanh thu cao nhất năm 2025?",
         {
             "kind": "split",
+            "lang": "vi",
             "message": "Câu hỏi có hai ý khác nhau nên tôi trả lời từng ý riêng.",
             "parts": [
                 "Thành phố nào có nhiều khách hàng nhất?",
@@ -109,6 +115,7 @@ EXAMPLES: list[tuple[str, dict]] = [
         "Bạn giúp được gì cho tôi?",
         {
             "kind": "info",
+            "lang": "vi",
             "message": "Tôi trả lời các câu hỏi về cửa hàng của bạn bằng lời thường: khách hàng, sản phẩm, đơn hàng và doanh thu. Ví dụ: ai mua nhiều nhất, sản phẩm nào bán chạy, doanh thu từng tháng. Tôi chỉ xem dữ liệu, không thêm, sửa hay xóa gì.",
             "suggestions": ["Doanh thu theo tháng năm 2026", "Top 5 khách hàng chi tiêu nhiều nhất", "Mỗi thành phố có bao nhiêu khách hàng?"],
         },
@@ -117,6 +124,7 @@ EXAMPLES: list[tuple[str, dict]] = [
         "Dạo này bán hàng thế nào?",
         {
             "kind": "clarify",
+            "lang": "vi",
             "message": "Bạn muốn xem tình hình bán hàng theo cách nào?",
             "options": [
                 "Doanh thu theo tháng năm 2026",
@@ -130,6 +138,7 @@ EXAMPLES: list[tuple[str, dict]] = [
 _RULES = """\
 Bạn là trợ lý dữ liệu cho chủ một cửa hàng online nhỏ ở Việt Nam. Chủ cửa hàng không biết SQL.
 Nhiệm vụ: đọc câu hỏi (tiếng Việt hoặc tiếng Anh), rồi trả về DUY NHẤT một JSON object.
+NGÔN NGỮ: mọi văn bản trong JSON (message, options, steps, interpretation, nhãn cột, suggestions, parts) viết bằng CÙNG ngôn ngữ với câu hỏi hiện tại: hỏi tiếng Anh thì trả lời tiếng Anh, hỏi tiếng Việt thì trả lời tiếng Việt. Nếu câu hỏi quá ngắn hoặc không rõ ngôn ngữ (ví dụ "2026", "top 10"), dùng ngôn ngữ giao diện: {ui_lang_name}. Ghi ngôn ngữ đã dùng vào "lang". Tên cột SQL (alias) luôn là snake_case tiếng Anh.
 
 ## Cơ sở dữ liệu (PostgreSQL)
 {schema}
@@ -166,9 +175,10 @@ KHÔNG hỏi lại khi phạm vi đã rõ (ví dụ "liệt kê tất cả đơn
 - Đặt alias cột bằng snake_case tiếng Anh; cột tiền kết thúc bằng _vnd. Ép kiểu date_trunc(...)::date.
 - Khi lọc theo tên (sản phẩm, khách, thành phố) dùng ILIKE để không phân biệt hoa thường. Tên thành phố trong dữ liệu không dấu: 'Ha Noi', 'TP.HCM', 'Da Nang', 'Can Tho'.
 
-## JSON trả về (mọi văn bản bằng TIẾNG VIỆT, kể cả khi câu hỏi bằng tiếng Anh)
+## JSON trả về (văn bản cùng ngôn ngữ với câu hỏi, xem phần NGÔN NGỮ)
 {{
   "kind": "sql" | "clarify" | "refuse" | "split" | "info",
+  "lang": "vi" | "en",
   "reason": "write_operation" | "not_available" | null,   // chỉ khi refuse
   "message": string | null,          // clarify: câu hỏi lại; refuse: giải thích ngắn; split: một câu báo đã tách
   "parts": [string],                 // chỉ khi split: 2-3 câu hỏi con
@@ -183,10 +193,11 @@ KHÔNG hỏi lại khi phạm vi đã rõ (ví dụ "liệt kê tất cả đơn
 """
 
 
-def build_system_prompt(profile: str) -> str:
+def build_system_prompt(profile: str, ui_lang: str = "vi") -> str:
     today = dt.date.today()
     schema = settings.schema_path.read_text(encoding="utf-8")
-    return _RULES.format(schema=schema.strip(), profile=profile, today=today.isoformat(), year=today.year)
+    return _RULES.format(schema=schema.strip(), profile=profile, today=today.isoformat(), year=today.year,
+                         ui_lang_name="tiếng Anh (en)" if ui_lang == "en" else "tiếng Việt (vi)")
 
 
 def _clip(v, n: int = 120):
@@ -222,8 +233,8 @@ def _prior_answer(turn: dict) -> dict:
     return prior
 
 
-def build_messages(question: str, history: list[dict], profile: str) -> list[dict]:
-    messages = [{"role": "system", "content": build_system_prompt(profile)}]
+def build_messages(question: str, history: list[dict], profile: str, ui_lang: str = "vi") -> list[dict]:
+    messages = [{"role": "system", "content": build_system_prompt(profile, ui_lang)}]
     for q, answer in EXAMPLES:
         messages.append({"role": "user", "content": q})
         messages.append({"role": "assistant", "content": json.dumps(answer, ensure_ascii=False)})
@@ -235,7 +246,7 @@ def build_messages(question: str, history: list[dict], profile: str) -> list[dic
 
 
 SUMMARY_PROMPT = """\
-Bạn viết MỘT câu tóm tắt ngắn bằng tiếng Việt cho chủ cửa hàng, trả lời trực tiếp câu hỏi dựa trên kết quả.
+Bạn viết MỘT câu tóm tắt ngắn cho chủ cửa hàng, trả lời trực tiếp câu hỏi dựa trên kết quả. Viết bằng ngôn ngữ trong "answer_language" (Vietnamese hoặc English).
 Chỉ dùng số liệu có trong kết quả, không bịa. Tiền viết dạng 1,234,000 ₫. Ngày viết dd/mm/yyyy.
 "sample_rows" chỉ là tối đa 20 dòng ĐẦU để minh họa, KHÔNG phải toàn bộ. Mọi con số đếm/tổng/lớn nhất/nhỏ nhất phải lấy từ "row_count_exact" (hoặc "row_count_at_least") và "stats" (tính trên toàn bộ kết quả), không bao giờ đếm hay cộng trên sample_rows.
 Có "row_count_exact" thì nói đúng con số đó. Chỉ khi có "row_count_at_least" (kết quả bị cắt bớt) mới nói "ít nhất N"; khi đó KHÔNG đưa ra tổng nào, chỉ nói danh sách rất dài và gợi ý thu hẹp (theo năm, trạng thái, thành phố).

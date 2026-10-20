@@ -15,6 +15,8 @@ export interface HistoryTurn {
 export interface AskRequest {
   question: string;
   history: HistoryTurn[];
+  /** UI language: used for fixed messages, and for AI text when the question's language is unclear. */
+  lang?: "vi" | "en";
 }
 
 export interface AskResponse {

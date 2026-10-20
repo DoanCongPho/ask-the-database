@@ -1,5 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Component, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  Component,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ContextType,
+  type ReactNode,
+} from "react";
 import {
   Ban,
   CheckCircle2,
@@ -15,6 +23,7 @@ import {
   Sun,
   Trash2,
   AlertCircle,
+  Languages,
   ListChecks,
   MessagesSquare,
   Loader2,
@@ -25,6 +34,7 @@ import { AnswerCard, type Turn } from "@/components/shop/AnswerCard";
 import { SchemaSheet } from "@/components/shop/SchemaSheet";
 import { ask, USE_MOCK } from "@/lib/api";
 import { NetworkError, type AskResponse, type HistoryTurn } from "@/lib/types";
+import { EXAMPLES, I18nContext, I18nProvider, translate, type Lang } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/")({
@@ -44,14 +54,6 @@ export const Route = createFileRoute("/")({
   component: App,
 });
 
-const EXAMPLES = [
-  "Có bao nhiêu khách hàng?",
-  "Top 3 khách hàng chi tiêu nhiều nhất",
-  "Khách hàng chưa từng đặt hàng",
-  "Doanh thu theo tháng năm 2025",
-  "Sản phẩm nào tốt nhất?",
-  "Doanh thu theo thành phố",
-];
 const STORE_KEY = "ask-your-shop:turns";
 const CONV_KEY = "ask-your-shop:conversation";
 
@@ -59,6 +61,8 @@ class FeedBoundary extends Component<
   { children: ReactNode; onReset: () => void },
   { failed: boolean }
 > {
+  static override contextType = I18nContext;
+  declare context: ContextType<typeof I18nContext>;
   override state = { failed: false };
   static getDerivedStateFromError() {
     return { failed: true };
@@ -70,10 +74,8 @@ class FeedBoundary extends Component<
     if (!this.state.failed) return this.props.children;
     return (
       <div className="rounded-2xl border border-destructive/30 bg-destructive-soft p-6">
-        <h3 className="text-lg font-semibold">Có lỗi khi hiển thị câu trả lời</h3>
-        <p className="mt-1 text-muted-foreground">
-          Lịch sử câu hỏi vẫn được giữ. Bấm tải lại để tiếp tục.
-        </p>
+        <h3 className="text-lg font-semibold">{this.context.t("renderErrorTitle")}</h3>
+        <p className="mt-1 text-muted-foreground">{this.context.t("renderErrorBody")}</p>
         <Button
           className="mt-4"
           variant="outline"
@@ -82,7 +84,7 @@ class FeedBoundary extends Component<
             this.props.onReset();
           }}
         >
-          Tải lại
+          {this.context.t("reload")}
         </Button>
       </div>
     );
@@ -150,6 +152,11 @@ function App() {
   const [drawer, setDrawer] = useState(false);
   const [schemaOpen, setSchemaOpen] = useState(false);
   const [dark, setDark] = useState(false);
+  const [lang, setLang] = useState<Lang>("vi");
+  const langRef = useRef<Lang>("vi");
+  langRef.current = lang;
+  const t = (key: Parameters<typeof translate>[1], vars?: Record<string, string | number>) =>
+    translate(lang, key, vars);
   const [feedKey, setFeedKey] = useState(0);
   const loaded = useRef(false);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -164,6 +171,7 @@ function App() {
       const open = sessionStorage.getItem(CONV_KEY);
       if (open) setConvId(open);
       setDark(localStorage.getItem("ask-your-shop:theme") === "dark");
+      if (localStorage.getItem("ask-your-shop:lang") === "en") setLang("en");
     } catch {
       /* ignore */
     }
@@ -187,6 +195,14 @@ function App() {
     }
   }, [dark]);
   useEffect(() => {
+    document.documentElement.lang = lang;
+    try {
+      localStorage.setItem("ask-your-shop:lang", lang);
+    } catch {
+      /* ignore */
+    }
+  }, [lang]);
+  useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [turns.length]);
 
@@ -194,7 +210,7 @@ function App() {
     let res: AskResponse | undefined;
     let net: string | undefined;
     try {
-      res = await ask({ question, history });
+      res = await ask({ question, history, lang: langRef.current });
       if (!res || typeof res !== "object" || !res.status)
         throw new NetworkError("Máy chủ trả về dữ liệu không hợp lệ");
       res = { ...res, columns: res.columns ?? [], rows: res.rows ?? [] };
@@ -277,9 +293,9 @@ function App() {
           <Store className="size-5" />
         </span>
         <div>
-          <p className="font-semibold leading-tight">Hỏi Cửa Hàng</p>
+          <p className="font-semibold leading-tight">{t("appName")}</p>
           <p className="text-xs text-muted-foreground">
-            {USE_MOCK ? "Dữ liệu mẫu" : "Dữ liệu cửa hàng"}
+            {USE_MOCK ? t("sampleData") : t("shopData")}
           </p>
         </div>
       </div>
@@ -293,19 +309,19 @@ function App() {
             setDrawer(false);
           }}
         >
-          <Plus /> Cuộc trò chuyện mới
+          <Plus /> {t("newChat")}
         </Button>
       </div>
       <p className="px-5 pb-2 pt-6 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-        Các cuộc trò chuyện
+        {t("conversations")}
       </p>
       <nav className="flex-1 space-y-1 overflow-y-auto px-3">
         {conversations.length === 0 && (
-          <p className="px-2 text-sm text-muted-foreground">Câu hỏi của bạn sẽ hiện ở đây.</p>
+          <p className="px-2 text-sm text-muted-foreground">{t("historyEmpty")}</p>
         )}
         {turns.length === 0 && conversations.length > 0 && (
           <div className="rounded-lg bg-sidebar-accent px-2 py-2 text-sm font-medium">
-            Cuộc trò chuyện mới
+            {t("newChat")}
           </div>
         )}
         {conversations.map((c) => {
@@ -353,7 +369,7 @@ function App() {
               setConvId(crypto.randomUUID());
             }}
           >
-            <Trash2 /> Xóa tất cả
+            <Trash2 /> {t("clearAll")}
           </Button>
         </div>
       )}
@@ -361,136 +377,142 @@ function App() {
   );
 
   return (
-    <div className="flex h-dvh overflow-hidden bg-background">
-      <aside className="hidden w-72 shrink-0 border-r bg-sidebar text-sidebar-foreground md:block">
-        {sidebar}
-      </aside>
-      <Sheet open={drawer} onOpenChange={setDrawer}>
-        <SheetContent side="left" className="w-72 bg-sidebar p-0">
-          <SheetTitle className="sr-only">Lịch sử câu hỏi</SheetTitle>
+    <I18nProvider lang={lang} setLang={setLang}>
+      <div className="flex h-dvh overflow-hidden bg-background">
+        <aside className="hidden w-72 shrink-0 border-r bg-sidebar text-sidebar-foreground md:block">
           {sidebar}
-        </SheetContent>
-      </Sheet>
+        </aside>
+        <Sheet open={drawer} onOpenChange={setDrawer}>
+          <SheetContent side="left" className="w-72 bg-sidebar p-0">
+            <SheetTitle className="sr-only">{t("history")}</SheetTitle>
+            {sidebar}
+          </SheetContent>
+        </Sheet>
 
-      <main className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center gap-2 border-b px-3 py-2.5 sm:px-6">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="md:hidden"
-            aria-label="Mở lịch sử"
-            onClick={() => setDrawer(true)}
-          >
-            <Menu />
-          </Button>
-          <p className="font-semibold md:hidden">Hỏi Cửa Hàng</p>
-          <div className="ml-auto flex items-center gap-1">
-            <Button variant="ghost" size="sm" onClick={() => setSchemaOpen(true)}>
-              <Database /> Dữ liệu
-            </Button>
+        <main className="flex min-w-0 flex-1 flex-col">
+          <header className="flex items-center gap-2 border-b px-3 py-2.5 sm:px-6">
             <Button
               variant="ghost"
               size="icon"
-              aria-label="Đổi giao diện sáng/tối"
-              onClick={() => setDark((d) => !d)}
+              className="md:hidden"
+              aria-label={t("openHistory")}
+              onClick={() => setDrawer(true)}
             >
-              {dark ? <Sun /> : <Moon />}
+              <Menu />
             </Button>
-          </div>
-        </header>
+            <p className="font-semibold md:hidden">{t("appName")}</p>
+            <div className="ml-auto flex items-center gap-1">
+              <Button variant="ghost" size="sm" onClick={() => setSchemaOpen(true)}>
+                <Database /> {t("data")}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="font-semibold"
+                aria-label={t("switchLang")}
+                title={t("switchLang")}
+                onClick={() => setLang((l) => (l === "vi" ? "en" : "vi"))}
+              >
+                <Languages /> {lang === "vi" ? "VI" : "EN"}
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label={t("toggleTheme")}
+                onClick={() => setDark((d) => !d)}
+              >
+                {dark ? <Sun /> : <Moon />}
+              </Button>
+            </div>
+          </header>
 
-        <div className="flex-1 overflow-y-auto">
-          <div className="mx-auto w-full max-w-3xl space-y-8 px-4 py-8 sm:px-6">
-            {turns.length === 0 ? (
-              <section className="flex min-h-[55vh] flex-col justify-center gap-6">
-                <span className="grid size-14 place-items-center rounded-2xl bg-accent text-primary">
-                  <Store className="size-7" />
-                </span>
-                <div className="space-y-2">
-                  <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-                    Xin chào! 👋
-                  </h1>
-                  <p className="text-lg text-muted-foreground">
-                    Hỏi bất cứ điều gì về khách hàng, sản phẩm, đơn hàng và doanh thu của bạn.
-                  </p>
-                </div>
-                <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
-                  <Database className="size-4 text-primary" /> Dữ liệu hiện có:
-                  <span className="text-foreground">
-                    100 khách hàng · 20 sản phẩm · 700 đơn hàng · 01/2025 – 10/2026
+          <div className="flex-1 overflow-y-auto">
+            <div className="mx-auto w-full max-w-3xl space-y-8 px-4 py-8 sm:px-6">
+              {turns.length === 0 ? (
+                <section className="flex min-h-[55vh] flex-col justify-center gap-6">
+                  <span className="grid size-14 place-items-center rounded-2xl bg-accent text-primary">
+                    <Store className="size-7" />
                   </span>
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {EXAMPLES.map((e) => (
-                    <button
-                      key={e}
-                      onClick={() => askQuestion(e)}
-                      className="rounded-full border bg-card px-4 py-2 text-sm transition-colors hover:border-primary hover:bg-accent hover:text-accent-foreground"
-                    >
-                      {e}
-                    </button>
-                  ))}
-                </div>
-              </section>
-            ) : (
-              <FeedBoundary key={feedKey} onReset={() => setFeedKey((k) => k + 1)}>
-                {turns.map((t) => (
-                  <div key={t.id} className="space-y-8">
-                    <AnswerCard
-                      turn={t}
-                      onAsk={askQuestion}
-                      onRefine={(text, part) => refine(t, text, part)}
-                      onRetry={() => retry(t)}
-                    />
+                  <div className="space-y-2">
+                    <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
+                      {t("hello")}
+                    </h1>
+                    <p className="text-lg text-muted-foreground">{t("intro")}</p>
                   </div>
-                ))}
-              </FeedBoundary>
-            )}
-            <div ref={bottomRef} />
+                  <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
+                    <Database className="size-4 text-primary" /> {t("dataAvailable")}
+                    <span className="text-foreground">{t("dataFacts")}</span>
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {EXAMPLES[lang].map((e) => (
+                      <button
+                        key={e}
+                        onClick={() => askQuestion(e)}
+                        className="rounded-full border bg-card px-4 py-2 text-sm transition-colors hover:border-primary hover:bg-accent hover:text-accent-foreground"
+                      >
+                        {e}
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              ) : (
+                <FeedBoundary key={feedKey} onReset={() => setFeedKey((k) => k + 1)}>
+                  {turns.map((t) => (
+                    <div key={t.id} className="space-y-8">
+                      <AnswerCard
+                        turn={t}
+                        onAsk={askQuestion}
+                        onRefine={(text, part) => refine(t, text, part)}
+                        onRetry={() => retry(t)}
+                      />
+                    </div>
+                  ))}
+                </FeedBoundary>
+              )}
+              <div ref={bottomRef} />
+            </div>
           </div>
-        </div>
 
-        <div className="border-t bg-background/90 px-4 py-3 backdrop-blur sm:px-6">
-          <form
-            className="mx-auto flex max-w-3xl items-end gap-2 rounded-2xl border bg-card p-2 shadow-sm focus-within:ring-2 focus-within:ring-ring/40"
-            onSubmit={(e) => {
-              e.preventDefault();
-              askQuestion(input);
-            }}
-          >
-            <textarea
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
-                  e.preventDefault();
-                  askQuestion(input);
-                }
+          <div className="border-t bg-background/90 px-4 py-3 backdrop-blur sm:px-6">
+            <form
+              className="mx-auto flex max-w-3xl items-end gap-2 rounded-2xl border bg-card p-2 shadow-sm focus-within:ring-2 focus-within:ring-ring/40"
+              onSubmit={(e) => {
+                e.preventDefault();
+                askQuestion(input);
               }}
-              rows={1}
-              disabled={loading}
-              placeholder={
-                loading ? "Đang xử lý…" : "Hỏi về khách hàng, sản phẩm, đơn hàng, doanh thu…"
-              }
-              aria-label="Câu hỏi của bạn"
-              className="max-h-40 min-h-11 flex-1 resize-none bg-transparent px-3 py-2.5 outline-none placeholder:text-muted-foreground disabled:opacity-60 field-sizing-content"
-            />
-            <Button
-              type="submit"
-              size="icon"
-              className="size-11 rounded-xl"
-              disabled={loading || !input.trim()}
-              aria-label="Gửi"
             >
-              {loading ? <Loader2 className="animate-spin" /> : <SendHorizontal />}
-            </Button>
-          </form>
-          <p className="mx-auto mt-1.5 max-w-3xl px-1 text-xs text-muted-foreground">
-            Enter để gửi · Shift+Enter để xuống dòng
-          </p>
-        </div>
-      </main>
-      <SchemaSheet open={schemaOpen} onOpenChange={setSchemaOpen} />
-    </div>
+              <textarea
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                    e.preventDefault();
+                    askQuestion(input);
+                  }
+                }}
+                rows={1}
+                disabled={loading}
+                placeholder={loading ? t("working") : t("askPlaceholder")}
+                aria-label={t("yourQuestion")}
+                className="max-h-40 min-h-11 flex-1 resize-none bg-transparent px-3 py-2.5 outline-none placeholder:text-muted-foreground disabled:opacity-60 field-sizing-content"
+              />
+              <Button
+                type="submit"
+                size="icon"
+                className="size-11 rounded-xl"
+                disabled={loading || !input.trim()}
+                aria-label={t("send")}
+              >
+                {loading ? <Loader2 className="animate-spin" /> : <SendHorizontal />}
+              </Button>
+            </form>
+            <p className="mx-auto mt-1.5 max-w-3xl px-1 text-xs text-muted-foreground">
+              {t("enterHint")}
+            </p>
+          </div>
+        </main>
+        <SchemaSheet open={schemaOpen} onOpenChange={setSchemaOpen} />
+      </div>
+    </I18nProvider>
   );
 }

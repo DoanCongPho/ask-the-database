@@ -5,6 +5,7 @@ import {
   type HealthResponse,
   type SchemaResponse,
 } from "./types";
+import type { Lang } from "./i18n";
 import { mockAsk, mockSchema } from "./mock";
 
 const API_URL = (import.meta.env["VITE_API_URL"] as string | undefined) || "http://localhost:8000";
@@ -43,12 +44,12 @@ export async function ask(body: AskRequest): Promise<AskResponse> {
   return request<AskResponse>("/api/ask", { method: "POST", body: JSON.stringify(body) });
 }
 
-export async function getSchema(): Promise<SchemaResponse> {
+export async function getSchema(lang: Lang = "vi"): Promise<SchemaResponse> {
   if (USE_MOCK) {
     await delay(300);
     return mockSchema();
   }
-  return request<SchemaResponse>("/api/schema");
+  return request<SchemaResponse>(`/api/schema?lang=${lang}`);
 }
 
 export async function getHealth(): Promise<HealthResponse> {

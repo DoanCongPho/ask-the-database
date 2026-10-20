@@ -94,7 +94,7 @@ OpenAI **`gpt-4.1-mini`**, through the OpenAI SDK, in JSON mode at temperature 0
 
 The owner can't read SQL, so the page is built around plain Vietnamese and trust:
 
-- **Vietnamese everywhere**, including answers to English questions. Money is shown as `1,234,000 ₫`, dates as `dd/MM/yyyy`, months as `Tháng 10/2025`.
+- **Vietnamese or English.** A VI/EN switch next to dark mode changes the interface. The AI answers in the language you asked in: ask in English and the summary, steps, clarify options and suggestions come back in English. Very short follow-ups ("2026") use the interface language. Money is shown as `1,234,000 ₫` and dates as `dd/MM/yyyy`.
 - **A one-line summary first**, then the table or chart. The SQL is collapsed ("Xem truy vấn SQL"). The brief wants SQL visible but not in the way.
 - **"Xem cách tôi tìm câu trả lời":** the AI's steps in plain words, plus a "Lưu ý" line with any assumption it made. This lets the owner catch an answer that *looks* right but answered a different question.
 - **Refine in plain words instead of editing SQL.** Every answer has suggestion chips and a box ("chỉ năm 2026", "xem top 10"). These are sent as follow-ups with the previous question, SQL and first rows. We built this instead of "Edit SQL", because the owner can't write SQL.
