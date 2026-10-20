@@ -13,7 +13,7 @@ from . import db, llm
 from .config import settings
 from .formatting import build_columns, pick_chart
 from .prompt import SUMMARY_PROMPT, build_messages
-from .i18n import norm_lang, t
+from .i18n import detect_lang, norm_lang, t
 from .schema_info import schema_info
 from .safety import InvalidSQL, UnsafeSQL, check_sql
 
@@ -136,7 +136,8 @@ def _ask(question: str, history: list[dict], allow_split: bool = True, ui_lang: 
         profile = data_profile()
     except (PoolTimeout, psycopg.OperationalError):
         return _response(question, "error", message=t("db_down", lang))
-    messages = build_messages(question, history, profile, ui_lang)
+    detected = detect_lang(question)
+    messages = build_messages(question, history, profile, ui_lang, detected)
     attempts: list[dict] = []
     plan: dict = {}
 
@@ -147,7 +148,7 @@ def _ask(question: str, history: list[dict], allow_split: bool = True, ui_lang: 
             return _response(question, "error", message=e.text(lang), error_detail=e.detail or None, attempts=attempts)
 
         kind = plan.get("kind")
-        lang = norm_lang(plan.get("lang"), ui_lang)  # the question's language, as the model read it
+        lang = detected or norm_lang(plan.get("lang"), ui_lang)  # the question's language
         if kind == "clarify":
             return _response(
                 question, "clarify",

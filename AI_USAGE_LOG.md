@@ -432,3 +432,32 @@ Each change is tied to a research item (P1/P2/I1–I9).
 - Eval **28/28**, 700 orders unchanged.
 - **Not translated:** the 404 and error pages in `__root.tsx`/`error-page.ts` (outside the app's language state), network error details from `api.ts`, and the sample answers in mock mode.
 - **Not checked:** clicking it in a real browser.
+
+## 23. Demo video, and bugs it found
+
+**Asked:** Record the submission demo in one unedited take, narrated in clear English with an OpenAI voice model (key from `backend/.env`). Mid-way:
+- Scrolling made the screen jump.
+- The note on an English answer was in Vietnamese.
+- The "Adjust the answer" chips were in Vietnamese ("everything must be English when asked in English, Vietnamese when asked in Vietnamese").
+- The narration must explain the main decisions, such as why there's no RAG.
+
+**AI did:**
+- A Playwright script (outside the repo) that drives the real app (live LLM, live DB) in one Chrome session and records it.
+- Narration lines are generated with OpenAI `gpt-4o-mini-tts` before the take. The time each line starts is noted, and ffmpeg lays the clips on one audio track at those times. No cuts or reordering.
+- The narration says it's a text-to-speech voice.
+- Covered in the take: README, pipeline diagrams with the main decisions (no RAG, no SQL editing, stats in code, no Kafka or cache), the 8 test questions, refine, split, the language rule, info, schema, dark mode and conversations.
+- Fixes in the app from what the takes showed:
+  - **Language:** the model sometimes tagged an English question `lang: "vi"` late in a long conversation. Added `i18n.detect_lang` (Vietnamese diacritics → vi, common English words → en, else the model or UI decides). The code's choice wins and is also told to the model in the system prompt.
+  - **Prompt wording:** the prompt's `columns` comment literally said "nhãn tiếng Việt" (Vietnamese labels), and the date rule had no language for `interpretation`. Both now follow the question's language.
+  - **Typing lag:** typing re-rendered every answer card and chart on each keystroke. The input box is now its own `Composer` component with its own state.
+
+**Checked:**
+- Backend 68/68 (new `test_detect_lang`). Frontend typecheck OK, lint 0 errors, vitest 11/11. Eval 28/28.
+- Live: all 8 test questions plus split and info, asked in English with the UI in English, have no Vietnamese anywhere (summary, note, steps, labels, options, suggestions). "Doanh thu theo thành phố" stays fully Vietnamese.
+
+**Fixed / rejected:**
+- Take 1 stopped when typing timed out (the lag above), and its refine ("also show paid order counts") put counts and revenue on one chart, so it was changed to "only January to June".
+- Take 2 was stopped by the user for jumpy scrolling. Wheel jumps were replaced with smooth `scrollIntoView`.
+- Take 3 was stopped for the Vietnamese note.
+- The recording only covers the demo. The brief's "whole process from opening the README" recording can't be recreated afterwards.
+- Take 4 was moved around at the user's request: demo first, then the decisions. Take 5 was stopped when the user saw the first diagram in `docs/PIPELINE.md` show "Parse error on line 55" on GitHub. The cause was a `;` in "(Vietnamese labels; …)", which Mermaid reads as a line break (the same bug as entry 13, missed in one line). Fixed it and updated lines that had gone out of date (history contents, labels' language, summary stats). All 3 diagrams now parse with Mermaid 11. The user approved pushing; merged as PR #7 (language switch) and PR #8 (these fixes).

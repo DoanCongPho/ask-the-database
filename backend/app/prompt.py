@@ -150,7 +150,7 @@ NGÔN NGỮ: mọi văn bản trong JSON (message, options, steps, interpretatio
 - Trạng thái đơn: 'paid' (đã thanh toán), 'pending' (chờ xử lý), 'cancelled' (đã hủy).
 - Tên gọi thường dùng: khách hàng = customers; sản phẩm / mặt hàng = products; đơn hàng = orders; chi tiết đơn hàng / dòng đơn hàng / sản phẩm trong đơn = order_items; danh mục / loại hàng = products.category.
 - Tiền là VND (số nguyên). Tên cột tiền kết thúc bằng _vnd.
-- Mốc thời gian: "từ 2024" / "from 2024" / "since 2024" / "từ năm 2024 trở đi" = TỪ đầu năm 2024 đến hết dữ liệu: order_date >= '2024-01-01' (không có cận trên). "năm 2024" / "trong năm 2024" / "in 2024" / "of 2024" = CHỈ trong năm đó: order_date >= '2024-01-01' AND order_date < '2025-01-01'. Ghi cách hiểu vào "interpretation".
+- Mốc thời gian: "từ 2024" / "from 2024" / "since 2024" / "từ năm 2024 trở đi" = TỪ đầu năm 2024 đến hết dữ liệu: order_date >= '2024-01-01' (không có cận trên). "năm 2024" / "trong năm 2024" / "in 2024" / "of 2024" = CHỈ trong năm đó: order_date >= '2024-01-01' AND order_date < '2025-01-01'. Ghi cách hiểu vào "interpretation" (bằng ngôn ngữ của câu hỏi, ví dụ tiếng Anh: "from 01/01/2024 to the end of the data").
 
 ## Dữ liệu hiện có
 {profile}
@@ -186,7 +186,7 @@ KHÔNG hỏi lại khi phạm vi đã rõ (ví dụ "liệt kê tất cả đơn
   "steps": [string],                 // khi sql: 1-4 bước bằng lời thường, không thuật ngữ SQL (không nói JOIN, GROUP BY...)
   "interpretation": string | null,   // mặc định đã giả định, nếu có
   "sql": string | null,
-  "columns": [{{"name": string, "label": string, "type": "money"|"number"|"date"|"month"|"text"}}],  // nhãn tiếng Việt cho từng cột của SQL
+  "columns": [{{"name": string, "label": string, "type": "money"|"number"|"date"|"month"|"text"}}],  // nhãn cho từng cột của SQL, cùng ngôn ngữ với câu hỏi
   "chart": {{"type": "line"|"bar", "x": string, "y": [string]}} | null,   // line cho chuỗi thời gian, bar cho so sánh ít nhóm; null nếu không hợp
   "suggestions": [string]            // 2-3 câu hỏi tiếp theo ngắn
 }}
@@ -233,8 +233,13 @@ def _prior_answer(turn: dict) -> dict:
     return prior
 
 
-def build_messages(question: str, history: list[dict], profile: str, ui_lang: str = "vi") -> list[dict]:
-    messages = [{"role": "system", "content": build_system_prompt(profile, ui_lang)}]
+def build_messages(question: str, history: list[dict], profile: str, ui_lang: str = "vi",
+                   answer_lang: str | None = None) -> list[dict]:
+    system = build_system_prompt(profile, ui_lang)
+    if answer_lang:  # detected in code, so it wins over the language of earlier turns
+        name = 'tiếng Anh ("lang": "en")' if answer_lang == "en" else 'tiếng Việt ("lang": "vi")'
+        system += f"\n\nCâu hỏi hiện tại viết bằng {name}: viết mọi văn bản trong JSON bằng ngôn ngữ này, kể cả interpretation, steps và nhãn cột (label)."
+    messages = [{"role": "system", "content": system}]
     for q, answer in EXAMPLES:
         messages.append({"role": "user", "content": q})
         messages.append({"role": "assistant", "content": json.dumps(answer, ensure_ascii=False)})

@@ -15,7 +15,7 @@ sequenceDiagram
     participant LLM as OpenAI (gpt-4.1-mini)
 
     Owner->>UI: types / clicks a question
-    UI->>API: POST /api/ask {question, history[≤6 turns of question+sql]}
+    UI->>API: POST /api/ask {question, lang, history[≤6 turns: question, sql, answer, first rows]}
     Note over API: Bad body → 400 JSON error<br/>Any crash → 500 JSON error (never a blank page)
     API->>P: ask(question, history)
     Note over P: Empty or > 500 chars → status "error"
@@ -59,18 +59,18 @@ sequenceDiagram
     end
     Note over P: Still failing after 3 attempts → "error" with every attempt listed
 
-    P->>P: formatting.build_columns (Vietnamese labels; money/number/date/month/text)
+    P->>P: formatting.build_columns (labels in the question's language, types money/number/date/month/text)
     alt 0 rows
         P->>DB: MIN/MAX order_date
-        P-->>API: status "empty" + "Dữ liệu đơn hàng có từ 01/01/2025 đến 12/10/2026."
+        P-->>API: status "empty" + the data's date range ("Order data covers 01/01/2025 to 12/10/2026.")
     else rows
         P->>P: formatting.pick_chart (line for time series, bar for ≤25 groups)
-        P->>LLM: summary call on first 20 rows (skipped if it fails)
+        P->>LLM: summary call: stats computed in code over all rows + 20 sample rows (skipped if it fails)
         LLM-->>P: {"summary": "..."}
         P-->>API: status "ok" + rows, columns, chart, summary, steps, sql, attempts
     end
     API-->>UI: JSON (always the same shape, + elapsed_ms)
-    UI-->>Owner: answer card: summary, table/chart, "Xem cách tôi tìm câu trả lời", collapsed SQL
+    UI-->>Owner: answer card: summary, table/chart, reasoning steps, collapsed SQL
 ```
 
 ## 2. Which status the owner sees, and why
