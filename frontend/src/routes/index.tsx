@@ -34,7 +34,7 @@ import { AnswerCard, type Turn } from "@/components/shop/AnswerCard";
 import { SchemaSheet } from "@/components/shop/SchemaSheet";
 import { ask, USE_MOCK } from "@/lib/api";
 import { NetworkError, type AskResponse, type HistoryTurn } from "@/lib/types";
-import { EXAMPLES, I18nContext, I18nProvider, translate, type Lang } from "@/lib/i18n";
+import { EXAMPLES, I18nContext, I18nProvider, translate, useI18n, type Lang } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/")({
@@ -141,6 +141,50 @@ const toHistory = (r: AskResponse): HistoryTurn[] =>
 const timeFmt = (n: number) =>
   new Date(n).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
 
+/** The question box keeps its own draft, so typing re-renders only the box and not every
+ * answer card and chart in the feed (that got slow in long conversations). */
+function Composer({ loading, onAsk }: { loading: boolean; onAsk: (q: string) => boolean }) {
+  const { t } = useI18n();
+  const [input, setInput] = useState("");
+  const submit = () => {
+    if (onAsk(input)) setInput("");
+  };
+  return (
+    <form
+      className="mx-auto flex max-w-3xl items-end gap-2 rounded-2xl border bg-card p-2 shadow-sm focus-within:ring-2 focus-within:ring-ring/40"
+      onSubmit={(e) => {
+        e.preventDefault();
+        submit();
+      }}
+    >
+      <textarea
+        value={input}
+        onChange={(e) => setInput(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+            e.preventDefault();
+            submit();
+          }
+        }}
+        rows={1}
+        disabled={loading}
+        placeholder={loading ? t("working") : t("askPlaceholder")}
+        aria-label={t("yourQuestion")}
+        className="max-h-40 min-h-11 flex-1 resize-none bg-transparent px-3 py-2.5 outline-none placeholder:text-muted-foreground disabled:opacity-60 field-sizing-content"
+      />
+      <Button
+        type="submit"
+        size="icon"
+        className="size-11 rounded-xl"
+        disabled={loading || !input.trim()}
+        aria-label={t("send")}
+      >
+        {loading ? <Loader2 className="animate-spin" /> : <SendHorizontal />}
+      </Button>
+    </form>
+  );
+}
+
 function App() {
   // Every turn of the session, tagged with its conversation. Only the open conversation is shown
   // and sent to the AI as context.
@@ -148,7 +192,8 @@ function App() {
   const [convId, setConvId] = useState<string>(() => crypto.randomUUID());
   const turns = allTurns.filter((t) => t.convId === convId);
   const conversations = groupConversations(allTurns);
-  const [input, setInput] = useState("");
+  // Bumped by "new conversation" to clear the draft in the composer.
+  const [composerKey, setComposerKey] = useState(0);
   const [drawer, setDrawer] = useState(false);
   const [schemaOpen, setSchemaOpen] = useState(false);
   const [dark, setDark] = useState(false);
@@ -247,9 +292,7 @@ function App() {
     return true;
   };
 
-  const askQuestion = (q: string) => {
-    if (send(q, historyFor(turns))) setInput("");
-  };
+  const askQuestion = (q: string) => send(q, historyFor(turns));
 
   // A refinement ("chỉ năm 2026") builds on the card it was typed under, even if newer cards exist.
   // Refining one part of a split answer builds on that part only.
@@ -305,7 +348,7 @@ function App() {
           className="w-full justify-start"
           onClick={() => {
             if (turns.length) setConvId(crypto.randomUUID());
-            setInput("");
+            setComposerKey((k) => k + 1);
             setDrawer(false);
           }}
         >
@@ -474,38 +517,7 @@ function App() {
           </div>
 
           <div className="border-t bg-background/90 px-4 py-3 backdrop-blur sm:px-6">
-            <form
-              className="mx-auto flex max-w-3xl items-end gap-2 rounded-2xl border bg-card p-2 shadow-sm focus-within:ring-2 focus-within:ring-ring/40"
-              onSubmit={(e) => {
-                e.preventDefault();
-                askQuestion(input);
-              }}
-            >
-              <textarea
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
-                    e.preventDefault();
-                    askQuestion(input);
-                  }
-                }}
-                rows={1}
-                disabled={loading}
-                placeholder={loading ? t("working") : t("askPlaceholder")}
-                aria-label={t("yourQuestion")}
-                className="max-h-40 min-h-11 flex-1 resize-none bg-transparent px-3 py-2.5 outline-none placeholder:text-muted-foreground disabled:opacity-60 field-sizing-content"
-              />
-              <Button
-                type="submit"
-                size="icon"
-                className="size-11 rounded-xl"
-                disabled={loading || !input.trim()}
-                aria-label={t("send")}
-              >
-                {loading ? <Loader2 className="animate-spin" /> : <SendHorizontal />}
-              </Button>
-            </form>
+            <Composer key={composerKey} loading={loading} onAsk={askQuestion} />
             <p className="mx-auto mt-1.5 max-w-3xl px-1 text-xs text-muted-foreground">
               {t("enterHint")}
             </p>

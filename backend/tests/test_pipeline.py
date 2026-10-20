@@ -191,3 +191,14 @@ def test_system_prompt_names_the_ui_language_as_fallback(fake):
     f = fake({"kind": "clarify", "lang": "en", "message": "Which year?"})
     pipeline.ask("2026", [], "en")
     assert "tiếng Anh (en)" in f.calls[0][0]["content"]
+
+
+def test_detect_lang():
+    from app.i18n import detect_lang
+
+    assert detect_lang("Orders in the year 2024") == "en"
+    assert detect_lang("What can you do?") == "en"
+    assert detect_lang("Doanh thu theo thành phố") == "vi"
+    assert detect_lang("Top 3 khách hàng") == "vi"
+    assert detect_lang("2026") is None
+    assert detect_lang("top 10") is None

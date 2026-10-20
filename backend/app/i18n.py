@@ -4,6 +4,8 @@ Text the LLM writes (summary, steps, options, suggestions) follows the language 
 These fixed messages follow that same answer language once it is known, else the UI language.
 """
 
+import re
+
 LANGS = ("vi", "en")
 
 MESSAGES: dict[str, dict[str, str]] = {
@@ -81,3 +83,24 @@ def norm_lang(lang: object, default: str = "vi") -> str:
 
 def t(key: str, lang: str, **kw) -> str:
     return MESSAGES[key][norm_lang(lang)].format(**kw)
+
+
+_VI_CHARS = re.compile(r"[ăâđêôơưàáảãạằắẳẵặầấẩẫậèéẻẽẹềếểễệìíỉĩịòóỏõọồốổỗộờớởỡợùúủũụừứửữựỳýỷỹỵ]", re.I)
+_EN_WORDS = frozenset(
+    "the a an of by in on for from to and or is are was were what which who whom how many much show list all "
+    "me my our give get find best most least customers customer products product orders order revenue sales "
+    "spending spent total month monthly year never placed delete remove employee salaries can you do does per "
+    "each city cities category sold buy bought average please there".split()
+)
+
+
+def detect_lang(question: str) -> str | None:
+    """The question's language when it's clear from the text itself, else None (the model or UI decides).
+
+    The model also reports `lang`, but it sometimes says "vi" for an English question after a long
+    conversation, so a clear signal in the text wins."""
+    if _VI_CHARS.search(question):
+        return "vi"
+    if any(w in _EN_WORDS for w in re.findall(r"[a-z]+", question.lower())):
+        return "en"
+    return None
