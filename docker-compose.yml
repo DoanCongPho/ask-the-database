@@ -1,0 +1,60 @@
+# Whole app: Postgres (seeded, read-only role) + FastAPI backend + frontend.
+#   docker compose up --build        -> http://localhost:3000
+# The LLM key, base URL and model come from backend/.env (copy backend/.env.example).
+# Reset the data: docker compose down -v && docker compose up --build
+# Change host ports if they are busy: FRONTEND_PORT=3001 BACKEND_PORT=8001 docker compose up --build
+
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: shop
+    volumes:
+      # Runs once, on an empty volume, in name order: data first, then the read-only role.
+      - ./seed.sql:/docker-entrypoint-initdb.d/01-seed.sql:ro
+      - ./db/readonly_role.sql:/docker-entrypoint-initdb.d/02-readonly_role.sql:ro
+      - db-data:/var/lib/postgresql/data
+    # No host port: only the backend talks to the DB. To inspect it:
+    #   docker compose exec db psql -U postgres -d shop
+    healthcheck:
+      # Over TCP and as shop_reader, so it only passes after the init scripts finished.
+      test: ["CMD-SHELL", "PGPASSWORD=shop_reader psql -h 127.0.0.1 -U shop_reader -d shop -tAc 'SELECT 1 FROM orders LIMIT 1'"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    env_file:
+      - path: backend/.env
+        required: false
+    environment:
+      DATABASE_URL: postgresql://shop_reader:shop_reader@db:5432/shop
+      CORS_ORIGINS: http://localhost:${FRONTEND_PORT:-3000},http://127.0.0.1:${FRONTEND_PORT:-3000}
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: frontend
+      args:
+        # The browser calls the backend directly, so this is the host-side URL.
+        VITE_API_URL: http://localhost:${BACKEND_PORT:-8000}
+        VITE_USE_MOCK: "false"
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  db-data:
