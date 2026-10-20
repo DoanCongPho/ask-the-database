@@ -171,3 +171,23 @@ def test_info_question_returns_message_suggestions_and_real_tables(fake):
     r = pipeline.ask("Bạn làm được gì?", [])
     assert r["status"] == "info" and r["sql"] is None and r["suggestions"] == ["Doanh thu theo tháng"]
     assert [t["name"] for t in r["tables"]] == ["customers", "products", "orders", "order_items"]
+
+
+def test_fixed_messages_follow_the_answer_language(fake):
+    # Before the model runs, the UI language is used.
+    assert pipeline.ask("", [], "en")["message"] == "Please type a question."
+    # After it runs, the question's language (as the model reports it) wins over the UI language.
+    fake({"kind": "sql", "lang": "en", "sql": "SELECT id FROM orders WHERE order_date < '2024-01-01'"})
+    r = pipeline.ask("Orders in 2023", [], "vi")
+    assert r["status"] == "empty" and r["message"].startswith("No data matches this question. Order data covers 01/01/2025")
+    fake({"kind": "info", "lang": "en", "message": "I answer questions about your shop."})
+    r = pipeline.ask("What can you do?", [], "vi")
+    assert r["tables"][0]["description"] == "Customers"
+    fake(llm.LLMError(detail="boom", key="llm_timeout"))
+    assert pipeline.ask("Có bao nhiêu khách?", [], "en")["message"].startswith("The AI model took too long")
+
+
+def test_system_prompt_names_the_ui_language_as_fallback(fake):
+    f = fake({"kind": "clarify", "lang": "en", "message": "Which year?"})
+    pipeline.ask("2026", [], "en")
+    assert "tiếng Anh (en)" in f.calls[0][0]["content"]

@@ -22,3 +22,30 @@ SCHEMA_INFO = {"tables": [
         {"name": "quantity", "type": "integer", "description": "Số lượng"},
         {"name": "unit_price_vnd", "type": "integer", "description": "Giá lúc mua (có thể đã giảm giá)"}]},
 ]}
+
+SCHEMA_INFO_EN = {"tables": [
+    {"name": "customers", "description": "Customers", "columns": [
+        {"name": "id", "type": "integer", "description": "Customer ID"},
+        {"name": "name", "type": "text", "description": "Customer name"},
+        {"name": "city", "type": "text", "description": "City: Ha Noi, TP.HCM, Da Nang, Can Tho"},
+        {"name": "created_at", "type": "date", "description": "Sign-up date"}]},
+    {"name": "products", "description": "Products", "columns": [
+        {"name": "id", "type": "integer", "description": "Product ID"},
+        {"name": "name", "type": "text", "description": "Product name"},
+        {"name": "category", "type": "text", "description": "Category: drink, snack, household, personal care"},
+        {"name": "price_vnd", "type": "integer", "description": "Current list price"}]},
+    {"name": "orders", "description": "Orders", "columns": [
+        {"name": "id", "type": "integer", "description": "Order ID"},
+        {"name": "customer_id", "type": "integer", "description": "Customer who ordered"},
+        {"name": "order_date", "type": "date", "description": "Order date"},
+        {"name": "status", "type": "text", "description": "Status: paid, pending, cancelled"}]},
+    {"name": "order_items", "description": "Products in each order", "columns": [
+        {"name": "order_id", "type": "integer", "description": "Which order"},
+        {"name": "product_id", "type": "integer", "description": "Which product"},
+        {"name": "quantity", "type": "integer", "description": "Quantity"},
+        {"name": "unit_price_vnd", "type": "integer", "description": "Price paid (may be discounted)"}]},
+]}
+
+
+def schema_info(lang: str) -> dict:
+    return SCHEMA_INFO_EN if lang == "en" else SCHEMA_INFO

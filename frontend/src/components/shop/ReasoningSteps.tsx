@@ -1,13 +1,15 @@
 import { ChevronDown, ListChecks } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { useI18n } from "@/lib/i18n";
 
 /** Plain-language explanation of how the answer was found, for owners who can't read SQL. */
 export function ReasoningSteps({ steps }: { steps?: string[] | undefined }) {
+  const { t } = useI18n();
   if (!steps?.length) return null;
   return (
     <Collapsible>
       <CollapsibleTrigger className="group flex items-center gap-2 text-sm font-medium text-primary hover:underline">
-        <ListChecks className="size-4" /> Xem cách tôi tìm câu trả lời
+        <ListChecks className="size-4" /> {t("showSteps")}
         <ChevronDown className="size-4 transition-transform group-data-[state=open]:rotate-180" />
       </CollapsibleTrigger>
       <CollapsibleContent className="mt-3">

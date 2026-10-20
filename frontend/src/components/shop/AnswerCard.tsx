@@ -25,6 +25,7 @@ import { ReasoningSteps } from "./ReasoningSteps";
 import { CodeView, CopyBtn, SqlBlock } from "./SqlBlock";
 import { downloadCsv, toTsv } from "@/lib/format";
 import type { AskResponse } from "@/lib/types";
+import { useI18n, type MessageKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 export type Turn = {
@@ -75,6 +76,7 @@ function TextReply({
   label: string;
   onSend: (text: string) => void;
 }) {
+  const { t } = useI18n();
   const [text, setText] = useState("");
   const send = () => {
     const t = text.trim();
@@ -104,7 +106,7 @@ function TextReply({
         variant="outline"
         className="size-10 rounded-xl"
         disabled={!text.trim()}
-        aria-label={`Gửi: ${label}`}
+        aria-label={t("sendLabel", { label })}
       >
         <SendHorizontal />
       </Button>
@@ -120,15 +122,12 @@ function RefineBox({
   suggestions?: string[] | undefined;
   onRefine: (text: string) => void;
 }) {
+  const { t } = useI18n();
   return (
     <div className="space-y-2.5 border-t pt-4">
-      <p className="text-sm font-medium text-muted-foreground">Điều chỉnh câu trả lời</p>
+      <p className="text-sm font-medium text-muted-foreground">{t("refineTitle")}</p>
       <Chips items={suggestions} onPick={onRefine} />
-      <TextReply
-        placeholder="Ví dụ: chỉ năm 2026, xem top 10, chia theo thành phố…"
-        label="Điều chỉnh câu trả lời"
-        onSend={onRefine}
-      />
+      <TextReply placeholder={t("refinePlaceholder")} label={t("refineTitle")} onSend={onRefine} />
     </div>
   );
 }
@@ -171,9 +170,10 @@ function StateCard({
   );
 }
 
-const STEPS = ["Đang hiểu câu hỏi…", "Đang viết truy vấn…", "Đang lấy dữ liệu…"];
+const STEPS: MessageKey[] = ["loading1", "loading2", "loading3"];
 
 function LoadingCard() {
+  const { t } = useI18n();
   const [i, setI] = useState(0);
   useEffect(() => {
     const t = setInterval(() => setI((x) => Math.min(x + 1, STEPS.length - 1)), 1100);
@@ -182,7 +182,7 @@ function LoadingCard() {
   return (
     <div className="space-y-4 rounded-2xl border bg-card p-5 sm:p-6" aria-live="polite">
       <div className="flex items-center gap-2 text-sm text-primary">
-        <span className="size-2 animate-pulse rounded-full bg-primary" /> {STEPS[i]}
+        <span className="size-2 animate-pulse rounded-full bg-primary" /> {t(STEPS[i]!)}
       </div>
       <Skeleton className="h-7 w-2/3" />
       <Skeleton className="h-40 w-full rounded-xl" />
@@ -198,11 +198,12 @@ function TechDetails({
   sql?: string | null | undefined;
   detail?: string | null | undefined;
 }) {
+  const { t } = useI18n();
   if (!sql && !detail) return null;
   return (
     <Collapsible>
       <CollapsibleTrigger className="group flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground">
-        Chi tiết kỹ thuật{" "}
+        {t("techDetails")}{" "}
         <ChevronDown className="size-4 transition-transform group-data-[state=open]:rotate-180" />
       </CollapsibleTrigger>
       <CollapsibleContent className="mt-3 space-y-3">
@@ -218,6 +219,7 @@ function TechDetails({
 }
 
 function OkBody({ r, onRefine }: { r: AskResponse; onRefine: (text: string) => void }) {
+  const { t, lang } = useI18n();
   const [view, setView] = useState<"chart" | "table">(r.chart ? "chart" : "table");
   const nf = new Intl.NumberFormat("en-US");
   const retries = (r.attempts?.length ?? 0) - 1;
@@ -226,12 +228,11 @@ function OkBody({ r, onRefine }: { r: AskResponse; onRefine: (text: string) => v
       <div className="space-y-1.5">
         {r.summary && <p className="text-xl font-semibold leading-snug sm:text-2xl">{r.summary}</p>}
         {r.interpretation && (
-          <p className="text-sm text-muted-foreground">Lưu ý: {r.interpretation}</p>
+          <p className="text-sm text-muted-foreground">{t("note", { text: r.interpretation })}</p>
         )}
         {retries > 0 && (
           <p className="inline-flex items-center gap-1.5 text-sm text-warning">
-            <Wrench className="size-3.5" /> Lần đầu truy vấn bị lỗi, tôi đã tự sửa lại ({retries}{" "}
-            lần).
+            <Wrench className="size-3.5" /> {t("retried", { n: retries })}
           </p>
         )}
       </div>
@@ -247,7 +248,7 @@ function OkBody({ r, onRefine }: { r: AskResponse; onRefine: (text: string) => v
               )}
             >
               {v === "chart" ? <BarChart3 className="size-4" /> : <Table2 className="size-4" />}{" "}
-              {v === "chart" ? "Biểu đồ" : "Bảng"}
+              {t(v)}
             </button>
           ))}
         </div>
@@ -260,22 +261,22 @@ function OkBody({ r, onRefine }: { r: AskResponse; onRefine: (text: string) => v
       </div>
       {r.rows.length > 0 && (
         <div className="flex flex-wrap items-center gap-x-1 gap-y-2 border-t pt-4 text-sm text-muted-foreground">
-          <CopyBtn text={toTsv(r)} label="Sao chép bảng" />
+          <CopyBtn text={toTsv(r, lang)} label={t("copyTable")} />
           <Button size="sm" variant="ghost" onClick={() => downloadCsv(r)}>
-            <Download /> Tải CSV
+            <Download /> {t("downloadCsv")}
           </Button>
           <span className="ml-auto flex items-center gap-3">
             <span>
               {r.truncated
-                ? `Hiển thị ${nf.format(r.rows.length)} dòng đầu tiên`
-                : `${nf.format(r.row_count)} dòng`}
+                ? t("showingFirst", { n: nf.format(r.rows.length) })
+                : t("rows", { n: nf.format(r.row_count) })}
             </span>
             {r.elapsed_ms != null && (
               <span className="inline-flex items-center gap-1">
                 <Clock className="size-3.5" />
                 {r.elapsed_ms < 1000
                   ? `${r.elapsed_ms} ms`
-                  : `${(r.elapsed_ms / 1000).toFixed(1)} giây`}
+                  : t("seconds", { n: (r.elapsed_ms / 1000).toFixed(1) })}
               </span>
             )}
           </span>
@@ -295,13 +296,14 @@ type BodyProps = {
 };
 
 function ResponseBody({ r, onAsk, onRefine, onRetry }: BodyProps): ReactNode {
+  const { t } = useI18n();
   switch (r.status) {
     case "ok":
       return <OkBody r={r} onRefine={onRefine} />;
     case "empty":
       return (
-        <StateCard tone="muted" icon={<Inbox className="size-5" />} title="Không tìm thấy kết quả">
-          <p>{r.message ?? "Truy vấn chạy thành công nhưng không có dòng dữ liệu nào."}</p>
+        <StateCard tone="muted" icon={<Inbox className="size-5" />} title={t("emptyTitle")}>
+          <p>{r.message ?? t("emptyDefault")}</p>
           <div className="space-y-3">
             <ReasoningSteps steps={r.steps} />
             <SqlBlock data={r} />
@@ -314,13 +316,13 @@ function ResponseBody({ r, onAsk, onRefine, onRetry }: BodyProps): ReactNode {
         <StateCard
           tone="warning"
           icon={<HelpCircle className="size-5" />}
-          title="Bạn nói rõ hơn giúp tôi nhé"
+          title={t("clarifyTitle")}
         >
           {r.message && <p>{r.message}</p>}
           <Chips items={r.options} onPick={onRefine} />
           <TextReply
-            placeholder="Hoặc tự ghi ý bạn, ví dụ: theo số lượng bán năm 2025"
-            label="Tự trả lời câu hỏi làm rõ"
+            placeholder={t("clarifyPlaceholder")}
+            label={t("clarifyLabel")}
             onSend={onRefine}
           />
         </StateCard>
@@ -330,15 +332,11 @@ function ResponseBody({ r, onAsk, onRefine, onRetry }: BodyProps): ReactNode {
         <StateCard
           tone="neutral"
           icon={<ShieldAlert className="size-5" />}
-          title={
-            r.reason === "write_operation"
-              ? "Tôi chỉ đọc dữ liệu, không thể thay đổi hay xóa."
-              : "Dữ liệu cửa hàng không có thông tin này."
-          }
+          title={r.reason === "write_operation" ? t("refusedWrite") : t("refusedNotAvailable")}
         >
           {r.message && <p className="text-muted-foreground">{r.message}</p>}
           {!!r.suggestions?.length && (
-            <p className="text-sm text-muted-foreground">Bạn có thể hỏi:</p>
+            <p className="text-sm text-muted-foreground">{t("youCanAsk")}</p>
           )}
           <Chips items={r.suggestions} onPick={onAsk} />
         </StateCard>
@@ -352,12 +350,12 @@ function ResponseBody({ r, onAsk, onRefine, onRetry }: BodyProps): ReactNode {
         <StateCard
           tone="danger"
           icon={<AlertTriangle className="size-5" />}
-          title="Đã có lỗi xảy ra"
+          title={t("errorTitle")}
         >
-          <p>{r.message ?? "Tôi chưa trả lời được câu này. Bạn thử hỏi theo cách khác nhé."}</p>
+          <p>{r.message ?? t("errorDefault")}</p>
           <TechDetails sql={r.sql} detail={r.error_detail} />
           <Button onClick={onRetry} variant="outline">
-            <RotateCcw /> Thử lại
+            <RotateCcw /> {t("retry")}
           </Button>
         </StateCard>
       );
@@ -366,12 +364,13 @@ function ResponseBody({ r, onAsk, onRefine, onRetry }: BodyProps): ReactNode {
 
 /** General questions ("bạn làm được gì?"): what the app does, what data it has, what to ask. */
 function InfoBody({ r, onAsk }: { r: AskResponse; onAsk: (q: string) => void }) {
+  const { t } = useI18n();
   return (
-    <StateCard tone="neutral" icon={<Sparkles className="size-5" />} title="Tôi có thể giúp bạn">
+    <StateCard tone="neutral" icon={<Sparkles className="size-5" />} title={t("infoTitle")}>
       {r.message && <p>{r.message}</p>}
       {!!r.tables?.length && (
         <div className="space-y-2">
-          <p className="text-sm font-medium text-muted-foreground">Dữ liệu tôi đọc được</p>
+          <p className="text-sm font-medium text-muted-foreground">{t("dataIRead")}</p>
           <div className="grid gap-2 sm:grid-cols-2">
             {r.tables.map((t) => (
               <div key={t.name} className="rounded-xl border bg-card p-3">
@@ -387,7 +386,7 @@ function InfoBody({ r, onAsk }: { r: AskResponse; onAsk: (q: string) => void }) 
           </div>
         </div>
       )}
-      {!!r.suggestions?.length && <p className="text-sm text-muted-foreground">Bạn thử hỏi:</p>}
+      {!!r.suggestions?.length && <p className="text-sm text-muted-foreground">{t("tryAsking")}</p>}
       <Chips items={r.suggestions} onPick={onAsk} />
     </StateCard>
   );
@@ -395,17 +394,16 @@ function InfoBody({ r, onAsk }: { r: AskResponse; onAsk: (q: string) => void }) 
 
 /** A question with several independent asks, answered part by part with one query each. */
 function MultiBody({ r, onAsk, onRefine, onRetry }: BodyProps) {
+  const { t } = useI18n();
   return (
     <div className="space-y-4">
       <p className="flex items-center gap-2 text-sm text-muted-foreground">
         <Split className="size-4 shrink-0" />
-        {r.message ?? `Câu hỏi có ${r.parts?.length ?? 0} ý nên tôi trả lời từng ý riêng.`}
+        {r.message ?? t("multiDefault", { n: r.parts?.length ?? 0 })}
       </p>
       {r.parts?.map((part, i) => (
         <section key={i} className="space-y-2">
-          <h3 className="text-sm font-semibold">
-            Phần {i + 1}: {part.question}
-          </h3>
+          <h3 className="text-sm font-semibold">{t("part", { n: i + 1, q: part.question })}</h3>
           <ResponseBody
             r={part}
             onAsk={onAsk}
@@ -429,22 +427,17 @@ export function AnswerCard({
   onRefine: (text: string, part?: AskResponse) => void;
   onRetry: () => void;
 }) {
+  const { t } = useI18n();
   const r = turn.response;
   let body: ReactNode;
   if (turn.state === "loading") body = <LoadingCard />;
   else if (turn.state === "network") {
     body = (
-      <StateCard
-        tone="danger"
-        icon={<WifiOff className="size-5" />}
-        title="Không kết nối được máy chủ"
-      >
-        <p className="text-muted-foreground">
-          Tôi chưa lấy được dữ liệu cửa hàng. Bạn kiểm tra kết nối rồi thử lại sau ít phút nhé.
-        </p>
+      <StateCard tone="danger" icon={<WifiOff className="size-5" />} title={t("networkTitle")}>
+        <p className="text-muted-foreground">{t("networkBody")}</p>
         {turn.networkMessage && <TechDetails detail={turn.networkMessage} />}
         <Button onClick={onRetry} variant="outline">
-          <RotateCcw /> Thử lại
+          <RotateCcw /> {t("retry")}
         </Button>
       </StateCard>
     );

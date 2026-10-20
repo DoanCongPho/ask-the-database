@@ -401,3 +401,34 @@ Each change is tied to a research item (P1/P2/I1–I9).
 **Fixed / rejected / limits:**
 - The PRs are grouped by component and feature from the *final* code. They are not the true chronological history, because the project wasn't in git while it was built. Features that touch the same file (for example clarify, split and info in `AnswerCard.tsx`) are in one PR.
 - **Note for the user:** `docs/BRIEF.md` is now public. It includes the reviewer's submission email address.
+
+## 22. Language switch, and English answers to English questions
+
+**Asked:** (Vietnamese, with a screenshot: "What is the best product?" got a Vietnamese clarify card) Add a language picker like the light/dark switch. Answers and suggestions should be in English when the question is in English. This **replaces the earlier decision** (entry 8 / CLAUDE.md) that all UI and AI text is Vietnamese.
+
+**AI did:**
+- **Frontend:**
+  - `src/lib/i18n.tsx` holds the vi/en dictionary (about 70 strings, plus example questions per language) and an `I18nProvider` with a `useI18n()` hook.
+  - A VI/EN button in the header next to dark mode. The choice is stored in localStorage, sets `<html lang>`, and is sent as `lang` with each question.
+  - All shop components were translated.
+  - `formatCell` and `compactMoney` take the language (months `Oct 2025`, axis `1.2M`).
+  - The schema sheet fetches `/api/schema?lang=`.
+- **Backend:**
+  - New `app/i18n.py` holds every fixed message the app writes itself (DB down, empty question, too long, blocked write, timeout, gave up, empty result plus date range, split, LLM errors). `LLMError` now carries a message key.
+  - New English `SCHEMA_INFO_EN`, used by `info` answers and `/api/schema?lang=en`.
+- **Prompt:**
+  - A language rule: write all text in the question's language, and fall back to the UI language when the question's language is unclear. The model reports the language it used in a new `lang` field, and the pipeline uses it for fixed messages and the summary (`answer_language`).
+  - The English few-shot example ("How many paid orders per week in 2026?") was answered in Vietnamese and is now answered in English. All examples carry `lang`.
+
+**Checked:**
+- Backend tests for message language (the UI language before the model runs, then the question's language) and for the fallback named in the prompt. 67/67 pass.
+- Frontend UI test: the button switches to English (heading, example questions, `<html lang>`), sends `lang: "en"`, and switches back. 11/11 vitest pass; typecheck passes; lint has 0 errors (the 4 new warnings are the same fast-refresh kind as the existing ones).
+- Live (gpt-4.1-mini):
+  - "What is the best product?" with the UI in Vietnamese → English clarify and options.
+  - "Sản phẩm nào tốt nhất?" with the UI in English → Vietnamese.
+  - "Top 3 customers…" → English summary, steps and labels.
+  - "What can you do?" → English message and English table names.
+  - The follow-up "2026" with the UI in English → English.
+- Eval **28/28**, 700 orders unchanged.
+- **Not translated:** the 404 and error pages in `__root.tsx`/`error-page.ts` (outside the app's language state), network error details from `api.ts`, and the sample answers in mock mode.
+- **Not checked:** clicking it in a real browser.

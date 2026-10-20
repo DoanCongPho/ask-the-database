@@ -13,7 +13,8 @@ from . import db, llm
 from .config import settings
 from .formatting import build_columns, pick_chart
 from .prompt import SUMMARY_PROMPT, build_messages
-from .schema_info import SCHEMA_INFO
+from .i18n import norm_lang, t
+from .schema_info import schema_info
 from .safety import InvalidSQL, UnsafeSQL, check_sql
 
 log = logging.getLogger("pipeline")
@@ -21,7 +22,6 @@ log = logging.getLogger("pipeline")
 _profile_cache: str | None = None
 
 
-_DB_DOWN = "Không kết nối được cơ sở dữ liệu. Bạn kiểm tra lại máy chủ dữ liệu rồi thử lại nhé."
 
 
 def data_profile() -> str:
@@ -46,12 +46,12 @@ def data_profile() -> str:
     return _profile_cache
 
 
-def _date_range_note() -> str:
-    """Short Vietnamese note used in the empty state, e.g. 'Dữ liệu đơn hàng có từ 01/01/2025 đến 12/10/2026.'"""
+def _date_range_note(lang: str) -> str:
+    """Note for the empty state, e.g. 'Dữ liệu đơn hàng có từ 01/01/2025 đến 12/10/2026.'"""
     try:
         r = db.run_select("SELECT MIN(order_date), MAX(order_date) FROM orders")
         first, last = (f"{d[8:10]}/{d[5:7]}/{d[0:4]}" for d in r.rows[0])
-        return f"Dữ liệu đơn hàng có từ {first} đến {last}."
+        return t("date_range", lang, first=first, last=last)
     except Exception:
         return ""
 
@@ -95,11 +95,11 @@ def _stats(columns: list[dict], rows: list[list]) -> dict:
     return stats
 
 
-def _summarize(question: str, columns: list[dict], rows: list[list], truncated: bool) -> str | None:
+def _summarize(question: str, columns: list[dict], rows: list[list], truncated: bool, lang: str) -> str | None:
     if not rows:
         return None
     count = {"row_count_at_least": len(rows)} if truncated else {"row_count_exact": len(rows)}
-    payload = {"question": question, **count, "columns": columns,
+    payload = {"question": question, "answer_language": "English" if lang == "en" else "Vietnamese", **count, "columns": columns,
                # Stats over a cut-off result would look like totals but aren't, so send none.
         "stats": {} if truncated else _stats(columns, rows), "sample_rows": rows[:20]}
     try:
@@ -114,27 +114,29 @@ def _summarize(question: str, columns: list[dict], rows: list[list], truncated: 
         return None
 
 
-def ask(question: str, history: list[dict]) -> dict:
+def ask(question: str, history: list[dict], lang: str = "vi") -> dict:
+    """`lang` is the UI language: used before the question's language is known, and when it is unclear."""
     started = time.monotonic()
-    result = _ask(question.strip(), history)
+    result = _ask(question.strip(), history, ui_lang=norm_lang(lang))
     result["elapsed_ms"] = int((time.monotonic() - started) * 1000)
     return result
 
 
-def _ask(question: str, history: list[dict], allow_split: bool = True) -> dict:
+def _ask(question: str, history: list[dict], allow_split: bool = True, ui_lang: str = "vi") -> dict:
+    lang = ui_lang
     if not question:
-        return _response(question, "error", message="Bạn chưa nhập câu hỏi.")
+        return _response(question, "error", message=t("empty_question", lang))
     if len(question) > settings.max_question_chars:
-        return _response(question, "error", message=f"Câu hỏi dài quá ({len(question)} ký tự). Bạn rút gọn dưới {settings.max_question_chars} ký tự nhé.")
+        return _response(question, "error", message=t("too_long", lang, n=len(question), max=settings.max_question_chars))
 
     # Check the DB first (2 s) so a DB outage doesn't cost an LLM call and a long wait.
     if not db.ping():
-        return _response(question, "error", message=_DB_DOWN)
+        return _response(question, "error", message=t("db_down", lang))
     try:
         profile = data_profile()
     except (PoolTimeout, psycopg.OperationalError):
-        return _response(question, "error", message=_DB_DOWN)
-    messages = build_messages(question, history, profile)
+        return _response(question, "error", message=t("db_down", lang))
+    messages = build_messages(question, history, profile, ui_lang)
     attempts: list[dict] = []
     plan: dict = {}
 
@@ -142,21 +144,22 @@ def _ask(question: str, history: list[dict], allow_split: bool = True) -> dict:
         try:
             plan = llm.chat_json(messages)
         except llm.LLMError as e:
-            return _response(question, "error", message=e.user_message, error_detail=e.detail or None, attempts=attempts)
+            return _response(question, "error", message=e.text(lang), error_detail=e.detail or None, attempts=attempts)
 
         kind = plan.get("kind")
+        lang = norm_lang(plan.get("lang"), ui_lang)  # the question's language, as the model read it
         if kind == "clarify":
             return _response(
                 question, "clarify",
-                message=plan.get("message") or "Bạn nói rõ hơn giúp tôi nhé?",
+                message=plan.get("message") or t("clarify_default", lang),
                 options=_strings(plan.get("options")),
             )
         if kind == "info":
             # General questions ("bạn làm được gì?", "có những bảng nào?"). The data description comes
             # from SCHEMA_INFO, not from the model, so it can't invent tables.
             return _response(
-                question, "info", tables=SCHEMA_INFO["tables"],
-                message=plan.get("message") or "Tôi trả lời câu hỏi về khách hàng, sản phẩm, đơn hàng và doanh thu của cửa hàng.",
+                question, "info", tables=schema_info(lang)["tables"],
+                message=plan.get("message") or t("info_default", lang),
                 suggestions=_strings(plan.get("suggestions")),
             )
         if kind == "refuse":
@@ -166,7 +169,7 @@ def _ask(question: str, history: list[dict], allow_split: bool = True) -> dict:
         if kind == "split":
             parts = _strings(plan.get("parts"), 3)
             if allow_split and len(parts) >= 2:
-                return _split(question, history, parts, plan.get("message"))
+                return _split(question, history, parts, plan.get("message"), lang)
             plan = {"kind": "split", "parts": parts}  # keep the retry transcript short
             error = 'Câu này chỉ có một ý, không cần tách. Hãy trả lời bằng kind "sql" (hoặc clarify/refuse).'
             log.info("attempt %d: unexpected split %s", attempt + 1, parts)
@@ -188,25 +191,25 @@ def _ask(question: str, history: list[dict], allow_split: bool = True) -> dict:
                 log.warning("blocked unsafe SQL: %s | %s", e, sql)
                 return _response(
                     question, "refused", reason="write_operation", sql=sql,
-                    message="Câu hỏi này dẫn tới thao tác thay đổi dữ liệu nên tôi đã chặn lại. Ứng dụng chỉ xem dữ liệu.",
+                    message=t("blocked_write", lang),
                     error_detail=str(e),
                 )
             except (psycopg.errors.ReadOnlySqlTransaction, psycopg.errors.InsufficientPrivilege) as e:
                 # The database itself blocked a write that got past check_sql.
                 log.warning("database blocked a write: %s | %s", e, sql)
                 return _response(question, "refused", reason="write_operation", sql=sql,
-                                 message="Cơ sở dữ liệu đã chặn thao tác này vì ứng dụng chỉ được phép xem dữ liệu.", error_detail=str(e))
+                                 message=t("db_blocked_write", lang), error_detail=str(e))
             except (PoolTimeout, psycopg.OperationalError) as e:
                 if isinstance(e, psycopg.errors.QueryCanceled):
                     return _response(question, "error", sql=sql, attempts=attempts + [{"sql": sql, "error": "timeout"}],
-                                     message="Truy vấn chạy quá lâu nên tôi đã dừng lại. Bạn thử hỏi hẹp hơn (ví dụ một năm, một thành phố) nhé.",
+                                     message=t("timeout", lang),
                                      error_detail=str(e))
-                return _response(question, "error", sql=sql, message=_DB_DOWN, error_detail=str(e))
+                return _response(question, "error", sql=sql, message=t("db_down", lang), error_detail=str(e))
             except (InvalidSQL, psycopg.Error) as e:
                 error = str(e).strip()
             else:
                 attempts.append({"sql": safe_sql, "error": None})
-                return _finish(question, plan, safe_sql, result, attempts)
+                return _finish(question, plan, safe_sql, result, attempts, lang)
             attempts.append({"sql": sql, "error": error})
 
         log.info("attempt %d failed: %s", attempt + 1, error)
@@ -217,39 +220,39 @@ def _ask(question: str, history: list[dict], allow_split: bool = True) -> dict:
 
     return _response(
         question, "error", sql=attempts[-1]["sql"] if attempts else None, attempts=attempts,
-        message=f"Tôi chưa viết được truy vấn đúng cho câu này sau {settings.max_retries + 1} lần thử. Bạn thử hỏi cụ thể hơn nhé.",
+        message=t("gave_up", lang, n=settings.max_retries + 1),
         error_detail=attempts[-1]["error"] if attempts else None, steps=_strings(plan.get("steps")),
     )
 
 
-def _split(question: str, history: list[dict], parts: list[str], message: str | None) -> dict:
+def _split(question: str, history: list[dict], parts: list[str], message: str | None, lang: str) -> dict:
     """Answer each independent sub-question with its own query (in parallel), so one bad part
     can't break the others and each result gets its own table, chart and summary."""
 
     def one(part: str) -> dict:
         try:
-            return _ask(part, history, allow_split=False)
+            return _ask(part, history, allow_split=False, ui_lang=lang)
         except Exception as e:  # a part must never take the whole answer down
             log.exception("split part failed: %s", part)
-            return _response(part, "error", message="Tôi chưa trả lời được phần này. Bạn thử hỏi riêng nhé.", error_detail=type(e).__name__)
+            return _response(part, "error", message=t("part_failed", lang), error_detail=type(e).__name__)
 
     with ThreadPoolExecutor(max_workers=len(parts)) as pool:
         results = list(pool.map(one, parts))
     return _response(question, "multi", parts=results,
-                     message=message or f"Câu hỏi có {len(parts)} ý nên tôi trả lời từng ý riêng.")
+                     message=message or t("split_default", lang, n=len(parts)))
 
 
-def _finish(question: str, plan: dict, sql: str, result: db.QueryResult, attempts: list[dict]) -> dict:
+def _finish(question: str, plan: dict, sql: str, result: db.QueryResult, attempts: list[dict], lang: str) -> dict:
     columns = build_columns(result.columns, plan.get("columns"))
     common = dict(
         sql=sql, steps=_strings(plan.get("steps")), interpretation=plan.get("interpretation") or None,
         suggestions=_strings(plan.get("suggestions"), 3), columns=columns, attempts=attempts,
     )
     if not result.rows:
-        note = _date_range_note()
-        return _response(question, "empty", message=f"Không có dữ liệu phù hợp với câu hỏi này. {note}".strip(), **common)
+        note = _date_range_note(lang)
+        return _response(question, "empty", message=f"{t('no_rows', lang)} {note}".strip(), **common)
     return _response(
         question, "ok", rows=result.rows, row_count=len(result.rows), truncated=result.truncated,
         chart=pick_chart(columns, result.rows, plan.get("chart")),
-        summary=_summarize(question, columns, result.rows, result.truncated), **common,
+        summary=_summarize(question, columns, result.rows, result.truncated, lang), **common,
     )

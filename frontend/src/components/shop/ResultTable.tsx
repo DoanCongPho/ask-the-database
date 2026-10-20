@@ -11,6 +11,7 @@ import {
 import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatCell, headerOf } from "@/lib/format";
+import { useI18n } from "@/lib/i18n";
 import type { AskResponse } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -18,6 +19,7 @@ type Row = (string | number | null)[];
 const PAGE = 50;
 
 export function ResultTable({ data }: { data: AskResponse }) {
+  const { t, lang } = useI18n();
   const [sorting, setSorting] = useState<SortingState>([]);
   const columns = useMemo<ColumnDef<Row>[]>(
     () =>
@@ -98,7 +100,7 @@ export function ResultTable({ data }: { data: AskResponse }) {
               <tr key={r.id} className={cn(ri % 2 === 1 && "bg-zebra")}>
                 {r.getVisibleCells().map((cell) => {
                   const type = data.columns[Number(cell.column.id)]!.type;
-                  const v = formatCell(cell.getValue() as Row[number], type);
+                  const v = formatCell(cell.getValue() as Row[number], type, lang);
                   return (
                     <td
                       key={cell.id}
@@ -118,14 +120,12 @@ export function ResultTable({ data }: { data: AskResponse }) {
       </div>
       {pages > 1 && (
         <div className="flex items-center justify-between gap-2 border-t px-3 py-2 text-sm text-muted-foreground">
-          <span>
-            Trang {pageIndex + 1}/{pages}
-          </span>
+          <span>{t("page", { n: pageIndex + 1, total: pages })}</span>
           <div className="flex gap-1">
             <Button
               size="icon"
               variant="ghost"
-              aria-label="Trang trước"
+              aria-label={t("prevPage")}
               disabled={!table.getCanPreviousPage()}
               onClick={() => table.previousPage()}
             >
@@ -134,7 +134,7 @@ export function ResultTable({ data }: { data: AskResponse }) {
             <Button
               size="icon"
               variant="ghost"
-              aria-label="Trang sau"
+              aria-label={t("nextPage")}
               disabled={!table.getCanNextPage()}
               onClick={() => table.nextPage()}
             >

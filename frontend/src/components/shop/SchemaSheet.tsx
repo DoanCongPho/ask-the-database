@@ -8,6 +8,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { getSchema } from "@/lib/api";
+import { useI18n } from "@/lib/i18n";
 import type { SchemaResponse } from "@/lib/types";
 
 export function SchemaSheet({
@@ -17,35 +18,35 @@ export function SchemaSheet({
   open: boolean;
   onOpenChange: (o: boolean) => void;
 }) {
+  const { t, lang } = useI18n();
   const [data, setData] = useState<SchemaResponse | null>(null);
   const [err, setErr] = useState(false);
+  useEffect(() => setData(null), [lang]);
   useEffect(() => {
     if (!open || data) return;
     setErr(false);
-    getSchema()
+    getSchema(lang)
       .then(setData)
       .catch(() => setErr(true));
-  }, [open, data]);
+  }, [open, data, lang]);
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-full overflow-y-auto sm:max-w-md">
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
-            <Database className="size-5 text-primary" /> Dữ liệu cửa hàng
+            <Database className="size-5 text-primary" /> {t("shopData")}
           </SheetTitle>
-          <SheetDescription>
-            Đây là những thông tin tôi dùng để trả lời câu hỏi của bạn.
-          </SheetDescription>
+          <SheetDescription>{t("schemaIntro")}</SheetDescription>
         </SheetHeader>
         <div className="space-y-4 px-4 pb-6">
           {!data && !err && (
             <div className="flex items-center gap-2 text-muted-foreground">
-              <Loader2 className="size-4 animate-spin" /> Đang tải…
+              <Loader2 className="size-4 animate-spin" /> {t("loadingDots")}
             </div>
           )}
           {err && (
             <p className="rounded-xl bg-destructive-soft p-4 text-sm text-destructive">
-              Chưa kết nối được máy chủ để tải phần này.
+              {t("schemaError")}
             </p>
           )}
           {data?.tables.map((t) => (

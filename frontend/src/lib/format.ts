@@ -1,3 +1,4 @@
+import type { Lang } from "./i18n";
 import type { AskResponse, ColumnType } from "./types";
 
 const money = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
@@ -12,7 +13,26 @@ function parseDate(v: string | number): Date | null {
   return isNaN(d.getTime()) ? null : d;
 }
 
-export function formatCell(v: string | number | null, type: ColumnType): string | null {
+const MONTHS_EN = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];
+
+export function formatCell(
+  v: string | number | null,
+  type: ColumnType,
+  lang: Lang = "vi",
+): string | null {
   if (v === null || v === undefined || v === "") return null;
   switch (type) {
     case "money": {
@@ -31,16 +51,19 @@ export function formatCell(v: string | number | null, type: ColumnType): string 
     }
     case "month": {
       const d = parseDate(v);
-      return d ? `Tháng ${d.getUTCMonth() + 1}/${d.getUTCFullYear()}` : String(v);
+      if (!d) return String(v);
+      return lang === "en"
+        ? `${MONTHS_EN[d.getUTCMonth()]} ${d.getUTCFullYear()}`
+        : `Tháng ${d.getUTCMonth() + 1}/${d.getUTCFullYear()}`;
     }
     default:
       return String(v);
   }
 }
 
-export function compactMoney(n: number): string {
-  if (Math.abs(n) >= 1e9) return `${num.format(n / 1e9)} tỷ`;
-  if (Math.abs(n) >= 1e6) return `${num.format(n / 1e6)} tr`;
+export function compactMoney(n: number, lang: Lang = "vi"): string {
+  if (Math.abs(n) >= 1e9) return `${num.format(n / 1e9)}${lang === "en" ? "B" : " tỷ"}`;
+  if (Math.abs(n) >= 1e6) return `${num.format(n / 1e6)}${lang === "en" ? "M" : " tr"}`;
   if (Math.abs(n) >= 1e3) return `${num.format(n / 1e3)}k`;
   return num.format(n);
 }
@@ -70,10 +93,10 @@ export function toCsv(r: AskResponse): string {
   return [head, ...body].join("\n");
 }
 
-export function toTsv(r: AskResponse): string {
+export function toTsv(r: AskResponse, lang: Lang = "vi"): string {
   const head = r.columns.map(headerOf).join("\t");
   const body = r.rows.map((row) =>
-    row.map((v, i) => formatCell(v, r.columns[i]!.type) ?? "").join("\t"),
+    row.map((v, i) => formatCell(v, r.columns[i]!.type, lang) ?? "").join("\t"),
   );
   return [head, ...body].join("\n");
 }

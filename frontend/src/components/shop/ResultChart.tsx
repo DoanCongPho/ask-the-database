@@ -10,20 +10,21 @@ import {
   YAxis,
 } from "recharts";
 import { compactMoney, formatCell, headerOf } from "@/lib/format";
+import { useI18n } from "@/lib/i18n";
 import type { AskResponse } from "@/lib/types";
 
 const COLORS = ["var(--chart-1)", "var(--chart-2)", "var(--chart-3)", "var(--chart-4)"];
 
 export function ResultChart({ data }: { data: AskResponse }) {
+  const { lang } = useI18n();
   const chart = data.chart!;
   const xi = data.columns.findIndex((c) => c.name === chart.x);
   const ys = chart.y.map((y) => data.columns.findIndex((c) => c.name === y)).filter((i) => i >= 0);
   if (xi < 0 || ys.length === 0) return null;
   const xCol = data.columns[xi]!;
-  const yType = data.columns[ys[0]!]!.type;
   const points = data.rows.slice(0, 200).map((r) => {
     const o: Record<string, string | number | null> = {
-      x: formatCell(r[xi] ?? null, xCol.type) ?? "—",
+      x: formatCell(r[xi] ?? null, xCol.type, lang) ?? "—",
     };
     ys.forEach((i) => (o[data.columns[i]!.name] = typeof r[i] === "number" ? r[i] : Number(r[i])));
     return o;
@@ -49,7 +50,7 @@ export function ResultChart({ data }: { data: AskResponse }) {
               tickLine={false}
               axisLine={false}
               width={56}
-              tickFormatter={(v) => (yType === "money" ? compactMoney(v) : compactMoney(v))}
+              tickFormatter={(v) => compactMoney(v, lang)}
             />
             <Tooltip
               cursor={{ fill: "var(--muted)" }}
@@ -61,7 +62,7 @@ export function ResultChart({ data }: { data: AskResponse }) {
               }}
               formatter={(v: number, name: string) => {
                 const c = data.columns.find((c) => c.name === name)!;
-                return [formatCell(v, c.type), headerOf(c)];
+                return [formatCell(v, c.type, lang), headerOf(c)];
               }}
             />
             {ys.map((i, k) => (
@@ -91,7 +92,7 @@ export function ResultChart({ data }: { data: AskResponse }) {
               tickLine={false}
               axisLine={false}
               width={56}
-              tickFormatter={(v) => (yType === "money" ? compactMoney(v) : compactMoney(v))}
+              tickFormatter={(v) => compactMoney(v, lang)}
             />
             <Tooltip
               cursor={{ fill: "var(--muted)" }}
@@ -103,7 +104,7 @@ export function ResultChart({ data }: { data: AskResponse }) {
               }}
               formatter={(v: number, name: string) => {
                 const c = data.columns.find((c) => c.name === name)!;
-                return [formatCell(v, c.type), headerOf(c)];
+                return [formatCell(v, c.type, lang), headerOf(c)];
               }}
             />
             {ys.map((i, k) => (

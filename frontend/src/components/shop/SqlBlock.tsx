@@ -3,6 +3,7 @@ import { Check, ChevronDown, Code2, Copy, Wrench } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import type { AskResponse } from "@/lib/types";
+import { useI18n } from "@/lib/i18n";
 
 const KW =
   /^(select|from|where|and|or|not|join|left|right|inner|outer|full|on|group|by|order|having|limit|offset|as|asc|desc|with|case|when|then|else|end|in|is|null|between|like|ilike|distinct|union|all|count|sum|avg|min|max|extract|year|date_trunc|coalesce|using|interval)$/i;
@@ -62,7 +63,8 @@ export function CodeView({ sql }: { sql: string }) {
   );
 }
 
-function CopyBtn({ text, label = "Sao chép" }: { text: string; label?: string }) {
+function CopyBtn({ text, label }: { text: string; label?: string }) {
+  const { t } = useI18n();
   const [done, setDone] = useState(false);
   return (
     <Button
@@ -78,24 +80,19 @@ function CopyBtn({ text, label = "Sao chép" }: { text: string; label?: string }
         }
       }}
     >
-      {done ? <Check /> : <Copy />} {done ? "Đã sao chép" : label}
+      {done ? <Check /> : <Copy />} {done ? t("copied") : (label ?? t("copy"))}
     </Button>
   );
 }
 
-export function SqlBlock({
-  data,
-  label = "Xem truy vấn SQL",
-}: {
-  data: AskResponse;
-  label?: string;
-}) {
+export function SqlBlock({ data, label }: { data: AskResponse; label?: string }) {
+  const { t } = useI18n();
   if (!data.sql) return null;
   const failed = (data.attempts ?? []).filter((a) => a.error);
   return (
     <Collapsible>
       <CollapsibleTrigger className="group flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground">
-        <Code2 className="size-4" /> {label}
+        <Code2 className="size-4" /> {label ?? t("showSql")}
         <ChevronDown className="size-4 transition-transform group-data-[state=open]:rotate-180" />
       </CollapsibleTrigger>
       <CollapsibleContent className="mt-3 space-y-3">
@@ -104,7 +101,7 @@ export function SqlBlock({
         {(data.attempts?.length ?? 0) > 1 && (
           <Collapsible>
             <CollapsibleTrigger className="group flex items-center gap-2 text-sm text-warning">
-              <Wrench className="size-4" /> Đã tự sửa sau {data.attempts!.length} lần thử
+              <Wrench className="size-4" /> {t("fixedAfter", { n: data.attempts!.length })}
               <ChevronDown className="size-4 transition-transform group-data-[state=open]:rotate-180" />
             </CollapsibleTrigger>
             <CollapsibleContent className="mt-2 space-y-3">

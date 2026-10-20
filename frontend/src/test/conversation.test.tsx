@@ -36,6 +36,7 @@ describe("conversations", () => {
   beforeEach(() => {
     requests.length = 0;
     sessionStorage.clear();
+    localStorage.clear();
   });
 
   it("sends earlier turns, with what the owner saw, as context for a follow-up", async () => {
@@ -67,5 +68,22 @@ describe("conversations", () => {
     await screen.findAllByText("Trả lời: Có bao nhiêu khách hàng?");
     await askQ("chỉ ở Ha Noi");
     expect(requests[2]!.history.map((h) => h.question)).toEqual(["Có bao nhiêu khách hàng?"]);
+  });
+
+  it("the language button switches the UI to English and sends lang with the question", async () => {
+    render(<App />);
+    fireEvent.click(screen.getByLabelText("Switch to English"));
+    await screen.findByText("Hello! 👋");
+    expect(screen.getByText("How many customers are there?")).toBeInTheDocument();
+    expect(document.documentElement.lang).toBe("en");
+    fireEvent.change(screen.getByLabelText("Your question"), {
+      target: { value: "Revenue by city" },
+    });
+    fireEvent.click(screen.getByLabelText("Send"));
+    await screen.findAllByText("Trả lời: Revenue by city");
+    expect(requests[0]!.lang).toBe("en");
+    expect(screen.getByText("Adjust the answer")).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText("Chuyển sang tiếng Việt"));
+    await screen.findByText("Điều chỉnh câu trả lời");
   });
 });
